@@ -19,6 +19,7 @@ public class AssemblyContextManager : IDisposable
     private PEFile? _peFile;
     private ICompilation? _compilation;
     private CSharpDecompiler? _decompiler;
+    private DecompilerSettings? _settings;
     private UniversalAssemblyResolver? _resolver;
     private bool _disposed;
     private readonly ReaderWriterLockSlim _lock = new();
@@ -95,13 +96,8 @@ public class AssemblyContextManager : IDisposable
             _compilation = new DecompilerTypeSystem(_peFile, _resolver);
 
             // Create decompiler with enhanced settings
-            var settings = new DecompilerSettings
-            {
-                UsingDeclarations = true,
-                ShowXmlDocumentation = true,
-                NamedArguments = true
-            };
-            _decompiler = new CSharpDecompiler(_peFile, _resolver, settings);
+            _settings = CreateDefaultSettings();
+            _decompiler = new CSharpDecompiler(_peFile, _resolver, CloneSettings(_settings));
 
             // Extract MVID
             var moduleDef = _peFile.Metadata.GetModuleDefinition();
@@ -158,13 +154,8 @@ public class AssemblyContextManager : IDisposable
             _compilation = new DecompilerTypeSystem(_peFile, _resolver);
 
             // Create decompiler with enhanced settings
-            var settings = new DecompilerSettings
-            {
-                UsingDeclarations = true,
-                ShowXmlDocumentation = true,
-                NamedArguments = true
-            };
-            _decompiler = new CSharpDecompiler(_peFile, _resolver, settings);
+            _settings = CreateDefaultSettings();
+            _decompiler = new CSharpDecompiler(_peFile, _resolver, CloneSettings(_settings));
 
             // Extract MVID
             var moduleDef = _peFile.Metadata.GetModuleDefinition();
@@ -189,6 +180,23 @@ public class AssemblyContextManager : IDisposable
         {
             EnsureLoaded();
             return _decompiler!;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <summary>
+    /// Get a copy of the current decompiler settings
+    /// </summary>
+    public DecompilerSettings GetCurrentSettings()
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            EnsureLoaded();
+            return CloneSettings(_settings!);
         }
         finally
         {
@@ -312,7 +320,8 @@ public class AssemblyContextManager : IDisposable
         try
         {
             if (!IsLoaded) return;
-            _decompiler = new CSharpDecompiler(_peFile!, _resolver!, settings);
+            _settings = CloneSettings(settings);
+            _decompiler = new CSharpDecompiler(_peFile!, _resolver!, CloneSettings(_settings));
         }
         finally
         {
@@ -486,6 +495,7 @@ public class AssemblyContextManager : IDisposable
     private void DisposeContext()
     {
         _decompiler = null;
+        _settings = null;
         _compilation = null;
         _peFile?.Dispose();
         _peFile = null;
@@ -496,6 +506,34 @@ public class AssemblyContextManager : IDisposable
 
         // Recreate lazy indexes to reset them
         InitializeLazyIndexes();
+    }
+
+    private static DecompilerSettings CreateDefaultSettings()
+    {
+        return new DecompilerSettings
+        {
+            UsingDeclarations = true,
+            ShowXmlDocumentation = true,
+            NamedArguments = true,
+            MakeAssignmentExpressions = true,
+            AlwaysUseBraces = true,
+            RemoveDeadCode = true,
+            IntroduceIncrementAndDecrement = true
+        };
+    }
+
+    private static DecompilerSettings CloneSettings(DecompilerSettings settings)
+    {
+        return new DecompilerSettings
+        {
+            UsingDeclarations = settings.UsingDeclarations,
+            ShowXmlDocumentation = settings.ShowXmlDocumentation,
+            NamedArguments = settings.NamedArguments,
+            MakeAssignmentExpressions = settings.MakeAssignmentExpressions,
+            AlwaysUseBraces = settings.AlwaysUseBraces,
+            RemoveDeadCode = settings.RemoveDeadCode,
+            IntroduceIncrementAndDecrement = settings.IntroduceIncrementAndDecrement
+        };
     }
 
     public void Dispose()

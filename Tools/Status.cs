@@ -40,12 +40,17 @@ public static class StatusTool
 
     private static object GetDecompilerSettings()
     {
-        // Return current decompiler settings
+        var settings = ServiceLocator.ContextManager.GetCurrentSettings();
+
         return new
         {
-            usingDeclarations = true,
-            showXmlDocumentation = true,
-            namedArguments = true
+            usingDeclarations = settings.UsingDeclarations,
+            showXmlDocumentation = settings.ShowXmlDocumentation,
+            namedArguments = settings.NamedArguments,
+            makeAssignmentExpressions = settings.MakeAssignmentExpressions,
+            alwaysUseBraces = settings.AlwaysUseBraces,
+            removeDeadCode = settings.RemoveDeadCode,
+            introduceIncrementAndDecrement = settings.IntroduceIncrementAndDecrement
         };
     }
 

@@ -117,12 +117,43 @@ public class GenericClass<T> where T : class
 {
     private T? _value;
 
+    public T? Current
+    {
+        get => _value;
+        set => _value = value;
+    }
+
+    public event Action? Changed;
+
     public void GenericMethod(T parameter)
     {
         _value = parameter;
+        Changed?.Invoke();
     }
 
     public T? GetValue() => _value;
+
+    public void RaiseChanged() => Changed?.Invoke();
+}
+
+public class AliasClass
+{
+    public int Value;
+
+    public void Set(int value)
+    {
+        Value = value;
+    }
+}
+
+public class AliasClass<T>
+{
+    public T? Value;
+
+    public void Set(T? value)
+    {
+        Value = value;
+    }
 }
 
 /// <summary>
