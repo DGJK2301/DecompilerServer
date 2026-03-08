@@ -40,7 +40,7 @@ public class GenericAssemblyLoadingTests : IDisposable
         Assert.NotNull(result);
         var contextManager = _serviceProvider.GetRequiredService<AssemblyContextManager>();
         Assert.True(contextManager.IsLoaded);
-        Assert.Equal(testLibraryPath, contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(testLibraryPath), TestAssemblyHelper.NormalizePath(contextManager.AssemblyPath!));
         Assert.NotNull(contextManager.Mvid);
     }
 
@@ -104,7 +104,7 @@ public class GenericAssemblyLoadingTests : IDisposable
 
         // Assert
         Assert.True(contextManager.IsLoaded);
-        Assert.Equal(testLibraryPath, contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(testLibraryPath), TestAssemblyHelper.NormalizePath(contextManager.AssemblyPath!));
         Assert.NotNull(contextManager.Mvid);
 
         // Verify we can access types
@@ -161,20 +161,7 @@ public class GenericAssemblyLoadingTests : IDisposable
 
     private string GetTestLibraryPath()
     {
-        // Find the test library DLL
-        var testLibraryPath = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..",
-            "TestLibrary", "bin", "Debug", "net8.0", "test.dll");
-
-        testLibraryPath = Path.GetFullPath(testLibraryPath);
-
-        if (!File.Exists(testLibraryPath))
-        {
-            throw new FileNotFoundException($"Test library not found at: {testLibraryPath}");
-        }
-
-        return testLibraryPath;
+        return TestAssemblyHelper.GetTestAssemblyPath();
     }
 
     public void Dispose()

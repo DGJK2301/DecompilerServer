@@ -89,17 +89,23 @@ public class McpThreadingTests : ServiceTestBase
     [Fact]
     public void McpTools_Should_Work_Without_ThreadLocal_ServiceProvider()
     {
-        // Explicitly clear thread-local provider to simulate MCP worker thread
-        ServiceLocator.SetServiceProvider(null!);
-
-        // The global provider should still allow tools to work
-        var result = PingTool.Ping();
-        Assert.NotNull(result);
-
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.Equal("ok", response.GetProperty("status").GetString());
-
-        // Restore for other tests
         ServiceLocator.SetServiceProvider(_serviceProvider);
+
+        try
+        {
+            // Explicitly clear thread-local provider to simulate MCP worker thread
+            ServiceLocator.ClearThreadLocalServiceProvider();
+
+            // The global provider should still allow tools to work
+            var result = PingTool.Ping();
+            Assert.NotNull(result);
+
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+        }
+        finally
+        {
+            ServiceLocator.SetServiceProvider(_serviceProvider);
+        }
     }
 }

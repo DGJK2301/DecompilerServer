@@ -285,20 +285,33 @@ public class CoreToolTests : ServiceTestBase
     [Fact]
     public void AllTools_WithNoAssemblyLoaded_ReturnError()
     {
-        // This test demonstrates that tools properly handle the no-assembly-loaded case
-        // We'll just test one tool since they all use the same ServiceLocator pattern
-        ServiceLocator.SetServiceProvider(null!);
+        // This test demonstrates that tools properly handle the no-assembly-loaded case.
+        // We'll just test one tool since they all use the same ServiceLocator pattern.
+        var services = new ServiceCollection();
+        services.AddSingleton<AssemblyContextManager>();
+        services.AddSingleton<MemberResolver>();
+        services.AddSingleton<DecompilerService>();
+        services.AddSingleton<UsageAnalyzer>();
+        services.AddSingleton<InheritanceAnalyzer>();
+        services.AddSingleton<ResponseFormatter>();
 
-        // Act
-        var result = ResolveMemberIdTool.ResolveMemberId("any-id");
+        using var unloadedProvider = services.BuildServiceProvider();
+        ServiceLocator.SetServiceProvider(unloadedProvider);
 
-        // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.Equal("error", response.GetProperty("status").GetString());
+        try
+        {
+            // Act
+            var result = ResolveMemberIdTool.ResolveMemberId("any-id");
 
-        // Restore the service provider for other tests
-        ServiceLocator.SetServiceProvider(_serviceProvider);
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("error", response.GetProperty("status").GetString());
+        }
+        finally
+        {
+            ServiceLocator.SetServiceProvider(_serviceProvider);
+        }
     }
 
     [Fact]

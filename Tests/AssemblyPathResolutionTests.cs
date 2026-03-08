@@ -34,7 +34,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(absolutePath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(absolutePath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     [Fact]
@@ -143,14 +143,12 @@ public class AssemblyPathResolutionTests : IDisposable
 
         // Assert
         Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(assemblyPath, _contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
     }
 
     private string GetTestAssemblyPath()
     {
-        return Path.GetFullPath(Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..", "TestLibrary", "bin", "Debug", "net8.0", "test.dll"));
+        return TestAssemblyHelper.GetTestAssemblyPath();
     }
 
     public void Dispose()

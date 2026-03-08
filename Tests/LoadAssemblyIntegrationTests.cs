@@ -1,6 +1,7 @@
 using DecompilerServer;
 using DecompilerServer.Services;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Tests;
 
@@ -47,7 +48,13 @@ public class LoadAssemblyIntegrationTests : IDisposable
         Assert.DoesNotContain("error", result);
         Assert.Contains("mvid", result, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("assemblyPath", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(targetAssemblyPath.Replace("\\", "/"), result.Replace("\\", "/"));
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        var actualAssemblyPath = response.GetProperty("data").GetProperty("assemblyPath").GetString();
+        Assert.NotNull(actualAssemblyPath);
+        Assert.Equal(
+            TestAssemblyHelper.NormalizePath(targetAssemblyPath),
+            TestAssemblyHelper.NormalizePath(actualAssemblyPath!));
     }
 
     [Fact]
@@ -73,9 +80,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
 
     private string GetTestAssemblyPath()
     {
-        return Path.GetFullPath(Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..", "TestLibrary", "bin", "Debug", "net8.0", "test.dll"));
+        return TestAssemblyHelper.GetTestAssemblyPath();
     }
 
     public void Dispose()
