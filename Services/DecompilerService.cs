@@ -168,35 +168,34 @@ public class DecompilerService
 
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)
     {
-        // For members, we decompile the containing type and extract the member
-        if (method.DeclaringType == null)
-            return $"// Error: Method '{method.Name}' has no declaring type and cannot be decompiled";
-
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(method.DeclaringType.FullName));
+        return DecompileDeclaringType(method.DeclaringType, "Method", method.Name, decompiler);
     }
 
     private string DecompileField(IField field, CSharpDecompiler decompiler)
     {
-        if (field.DeclaringType == null)
-            return $"// Error: Field '{field.Name}' has no declaring type and cannot be decompiled";
-
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(field.DeclaringType.FullName));
+        return DecompileDeclaringType(field.DeclaringType, "Field", field.Name, decompiler);
     }
 
     private string DecompileProperty(IProperty property, CSharpDecompiler decompiler)
     {
-        if (property.DeclaringType == null)
-            return $"// Error: Property '{property.Name}' has no declaring type and cannot be decompiled";
-
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(property.DeclaringType.FullName));
+        return DecompileDeclaringType(property.DeclaringType, "Property", property.Name, decompiler);
     }
 
     private string DecompileEvent(IEvent evt, CSharpDecompiler decompiler)
     {
-        if (evt.DeclaringType == null)
-            return $"// Error: Event '{evt.Name}' has no declaring type and cannot be decompiled";
+        return DecompileDeclaringType(evt.DeclaringType, "Event", evt.Name, decompiler);
+    }
 
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(evt.DeclaringType.FullName));
+    private static string DecompileDeclaringType(IType? declaringType, string memberKind, string memberName, CSharpDecompiler decompiler)
+    {
+        if (declaringType == null)
+            return $"// Error: {memberKind} '{memberName}' has no declaring type and cannot be decompiled";
+
+        var typeDefinition = declaringType.GetDefinition();
+        if (typeDefinition == null)
+            return $"// Error: {memberKind} '{memberName}' declaring type could not be resolved and cannot be decompiled";
+
+        return decompiler.DecompileTypeAsString(typeDefinition.FullTypeName);
     }
 
     private string ComputeHash(string content)

@@ -117,12 +117,43 @@ public class GenericClass<T> where T : class
 {
     private T? _value;
 
+    public T? Current
+    {
+        get => _value;
+        set => _value = value;
+    }
+
+    public event Action? Changed;
+
     public void GenericMethod(T parameter)
     {
         _value = parameter;
+        Changed?.Invoke();
     }
 
     public T? GetValue() => _value;
+
+    public void RaiseChanged() => Changed?.Invoke();
+}
+
+public class AliasClass
+{
+    public int Value;
+
+    public void Set(int value)
+    {
+        Value = value;
+    }
+}
+
+public class AliasClass<T>
+{
+    public T? Value;
+
+    public void Set(T? value)
+    {
+        Value = value;
+    }
 }
 
 /// <summary>
@@ -209,5 +240,74 @@ public class OuterClass
     private class PrivateNestedClass
     {
         internal void InternalMethod() { }
+    }
+}
+
+/// <summary>
+/// Types for testing generic arity disambiguation (Foo / Foo{T} / Foo{T,U})
+/// </summary>
+public class ArityTest
+{
+    public void Run() { }
+}
+
+public class ArityTest<T>
+{
+    public T? Value;
+    public void Run(T? input) { Value = input; }
+}
+
+public class ArityTest<T, U>
+{
+    public T? First;
+    public U? Second;
+    public void Run(T? a, U? b) { First = a; Second = b; }
+}
+
+/// <summary>
+/// Class for testing method overload disambiguation
+/// </summary>
+public class OverloadTest
+{
+    public void Process() { }
+    public void Process(string input) { _ = input; }
+    public int Process(string input, int count) { _ = input; return count; }
+
+    public void ConsumeCollection(List<string> input) { _ = input; }
+    public void ConsumeCollection(Dictionary<string, int> input) { _ = input; }
+
+    public void Transform(List<int> data) { _ = data; }
+    public void Transform(List<string> data) { _ = data; }
+
+    public void Generic(int value) { _ = value; }
+    public void Generic<T>(List<T> data) { _ = data; }
+
+    public void ProcessMatrix(int[,] matrix) { _ = matrix; }
+    public void ProcessMatrix(int[,] matrix, string label) { _ = matrix; _ = label; }
+}
+
+public class IndexerOverloadTest
+{
+    private readonly Dictionary<string, string> _byString = new();
+    private readonly List<string> _byIndex = new();
+
+    public string this[int index]
+    {
+        get => index >= 0 && index < _byIndex.Count ? _byIndex[index] : string.Empty;
+        set
+        {
+            while (_byIndex.Count <= index)
+            {
+                _byIndex.Add(string.Empty);
+            }
+
+            _byIndex[index] = value;
+        }
+    }
+
+    public string this[string key]
+    {
+        get => _byString.TryGetValue(key, out var value) ? value : string.Empty;
+        set => _byString[key] = value;
     }
 }

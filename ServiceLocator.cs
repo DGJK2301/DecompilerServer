@@ -18,17 +18,24 @@ public static class ServiceLocator
     /// </summary>
     public static void SetServiceProvider(IServiceProvider serviceProvider)
     {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+
         // Always set thread-local for test compatibility
         _threadLocalProvider.Value = serviceProvider;
 
-        // Also set global if not already set (production scenario)
-        if (_globalProvider == null)
+        // Keep a global fallback for worker threads without thread-local state.
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                _globalProvider ??= serviceProvider;
-            }
+            _globalProvider = serviceProvider;
         }
+    }
+
+    /// <summary>
+    /// Clears the thread-local service provider so worker threads fall back to the global provider.
+    /// </summary>
+    public static void ClearThreadLocalServiceProvider()
+    {
+        _threadLocalProvider.Value = null;
     }
 
     public static T GetRequiredService<T>() where T : notnull

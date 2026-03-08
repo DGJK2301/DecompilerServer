@@ -1,6 +1,7 @@
 using DecompilerServer;
 using DecompilerServer.Services;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Tests;
 
@@ -35,7 +36,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var dataDir = Path.Combine(gameDir, "RimWorldWin64_Data", "Managed");
         Directory.CreateDirectory(dataDir);
 
-        var testAssemblyPath = GetTestAssemblyPath();
+        var testAssemblyPath = TestAssemblyHelper.GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
@@ -47,7 +48,13 @@ public class LoadAssemblyIntegrationTests : IDisposable
         Assert.DoesNotContain("error", result);
         Assert.Contains("mvid", result, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("assemblyPath", result, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(targetAssemblyPath.Replace("\\", "/"), result.Replace("\\", "/"));
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        var actualAssemblyPath = response.GetProperty("data").GetProperty("assemblyPath").GetString();
+        Assert.NotNull(actualAssemblyPath);
+        Assert.Equal(
+            TestAssemblyHelper.NormalizePath(targetAssemblyPath),
+            TestAssemblyHelper.NormalizePath(actualAssemblyPath!));
     }
 
     [Fact]
@@ -58,7 +65,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var dataDir = Path.Combine(gameDir, "MyGame_Data", "Managed");
         Directory.CreateDirectory(dataDir);
 
-        var testAssemblyPath = GetTestAssemblyPath();
+        var testAssemblyPath = TestAssemblyHelper.GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
@@ -69,13 +76,6 @@ public class LoadAssemblyIntegrationTests : IDisposable
         Assert.NotNull(result);
         Assert.DoesNotContain("error", result);
         Assert.Contains("mvid", result, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private string GetTestAssemblyPath()
-    {
-        return Path.GetFullPath(Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..", "TestLibrary", "bin", "Debug", "net8.0", "test.dll"));
     }
 
     public void Dispose()

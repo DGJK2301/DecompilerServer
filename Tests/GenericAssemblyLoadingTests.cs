@@ -31,7 +31,7 @@ public class GenericAssemblyLoadingTests : IDisposable
     public void LoadAssembly_WithValidAssemblyPath_LoadsSuccessfully()
     {
         // Arrange - Use the test library DLL
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act
         var result = LoadAssemblyTool.LoadAssembly(assemblyPath: testLibraryPath, rebuildIndex: false);
@@ -40,7 +40,7 @@ public class GenericAssemblyLoadingTests : IDisposable
         Assert.NotNull(result);
         var contextManager = _serviceProvider.GetRequiredService<AssemblyContextManager>();
         Assert.True(contextManager.IsLoaded);
-        Assert.Equal(testLibraryPath, contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(testLibraryPath), TestAssemblyHelper.NormalizePath(contextManager.AssemblyPath!));
         Assert.NotNull(contextManager.Mvid);
     }
 
@@ -61,7 +61,7 @@ public class GenericAssemblyLoadingTests : IDisposable
     public void LoadAssembly_WithAdditionalSearchDirs_ConfiguresResolver()
     {
         // Arrange
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
         var searchDir = Path.GetDirectoryName(testLibraryPath)!;
         var additionalSearchDirs = new[] { searchDir };
 
@@ -78,7 +78,7 @@ public class GenericAssemblyLoadingTests : IDisposable
     public void LoadAssembly_CanAnalyzeGenericAssembly_ReturnsBasicInfo()
     {
         // Arrange
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act
         var result = LoadAssemblyTool.LoadAssembly(assemblyPath: testLibraryPath, rebuildIndex: true);
@@ -97,14 +97,14 @@ public class GenericAssemblyLoadingTests : IDisposable
     {
         // Arrange
         var contextManager = _serviceProvider.GetRequiredService<AssemblyContextManager>();
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act
         contextManager.LoadAssemblyDirect(testLibraryPath);
 
         // Assert
         Assert.True(contextManager.IsLoaded);
-        Assert.Equal(testLibraryPath, contextManager.AssemblyPath);
+        Assert.Equal(TestAssemblyHelper.NormalizePath(testLibraryPath), TestAssemblyHelper.NormalizePath(contextManager.AssemblyPath!));
         Assert.NotNull(contextManager.Mvid);
 
         // Verify we can access types
@@ -121,7 +121,7 @@ public class GenericAssemblyLoadingTests : IDisposable
     {
         // Arrange
         var contextManager = _serviceProvider.GetRequiredService<AssemblyContextManager>();
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act
         contextManager.LoadAssemblyDirect(testLibraryPath);
@@ -138,7 +138,7 @@ public class GenericAssemblyLoadingTests : IDisposable
     public void LoadAssembly_WithBothGameDirAndAssemblyPath_ThrowsArgumentException()
     {
         // Arrange
-        var testLibraryPath = GetTestLibraryPath();
+        var testLibraryPath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act & Assert
         var result = LoadAssemblyTool.LoadAssembly(gameDir: "/some/game/dir", assemblyPath: testLibraryPath);
@@ -157,24 +157,6 @@ public class GenericAssemblyLoadingTests : IDisposable
         // Should return error response about missing parameters
         Assert.Contains("error", result.ToLower());
         Assert.Contains("must specify either", result.ToLower());
-    }
-
-    private string GetTestLibraryPath()
-    {
-        // Find the test library DLL
-        var testLibraryPath = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..",
-            "TestLibrary", "bin", "Debug", "net8.0", "test.dll");
-
-        testLibraryPath = Path.GetFullPath(testLibraryPath);
-
-        if (!File.Exists(testLibraryPath))
-        {
-            throw new FileNotFoundException($"Test library not found at: {testLibraryPath}");
-        }
-
-        return testLibraryPath;
     }
 
     public void Dispose()
