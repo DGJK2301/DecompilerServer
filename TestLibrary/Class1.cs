@@ -285,3 +285,29 @@ public class OverloadTest
     public void ProcessMatrix(int[,] matrix) { _ = matrix; }
     public void ProcessMatrix(int[,] matrix, string label) { _ = matrix; _ = label; }
 }
+
+public class IndexerOverloadTest
+{
+    private readonly Dictionary<string, string> _byString = new();
+    private readonly List<string> _byIndex = new();
+
+    public string this[int index]
+    {
+        get => index >= 0 && index < _byIndex.Count ? _byIndex[index] : string.Empty;
+        set
+        {
+            while (_byIndex.Count <= index)
+            {
+                _byIndex.Add(string.Empty);
+            }
+
+            _byIndex[index] = value;
+        }
+    }
+
+    public string this[string key]
+    {
+        get => _byString.TryGetValue(key, out var value) ? value : string.Empty;
+        set => _byString[key] = value;
+    }
+}

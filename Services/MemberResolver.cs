@@ -381,15 +381,15 @@ public class MemberResolver
     }
 
     /// <summary>
-    /// Check if a method's parameter types match the given XML-doc type names.
-    /// Matches by full name or simple name.
+    /// Check if a parameterized member's parameter types match the given XML-doc type names.
+    /// Matches by normalized XML-doc type name, full name, or simple name.
     /// </summary>
-    private static bool MatchesParamTypes(IMethod method, string[] paramTypes)
+    private static bool MatchesParamTypes(IParameterizedMember member, string[] paramTypes)
     {
-        if (method.Parameters.Count != paramTypes.Length) return false;
+        if (member.Parameters.Count != paramTypes.Length) return false;
         for (int i = 0; i < paramTypes.Length; i++)
         {
-            if (!MatchesXmlDocTypeName(method.Parameters[i].Type, paramTypes[i]))
+            if (!MatchesXmlDocTypeName(member.Parameters[i].Type, paramTypes[i]))
                 return false;
         }
         return true;
@@ -580,11 +580,22 @@ public class MemberResolver
 
     private IProperty? FindPropertyByFullName(string fullName, ICompilation compilation)
     {
-        var (typeName, propertyName, _) = SplitTypeMember(fullName);
+        var (typeName, propertyName, paramList) = SplitTypeMember(fullName);
         if (string.IsNullOrEmpty(typeName)) return null;
 
         var type = LookupType(typeName, compilation);
-        return type?.Properties.FirstOrDefault(p => p.Name == propertyName);
+        if (type == null) return null;
+
+        var candidates = type.Properties.Where(p => p.Name == propertyName).ToList();
+        if (candidates.Count == 0) return null;
+
+        if (paramList != null)
+        {
+            var paramTypes = ParseXmlDocParamList(paramList);
+            return candidates.FirstOrDefault(p => MatchesParamTypes(p, paramTypes));
+        }
+
+        return candidates[0];
     }
 
     private IEvent? FindEventByFullName(string fullName, ICompilation compilation)

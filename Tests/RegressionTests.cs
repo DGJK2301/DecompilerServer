@@ -431,6 +431,46 @@ public class RegressionTests : ServiceTestBase
     }
 
     [Fact]
+    public void ResolveMember_P_IndexerByParamList_Int()
+    {
+        var entity = MemberResolver.ResolveMember("P:TestLibrary.IndexerOverloadTest.Item(System.Int32)");
+        Assert.NotNull(entity);
+
+        var property = Assert.IsAssignableFrom<IProperty>(entity);
+        Assert.Single(property.Parameters);
+        Assert.Equal("Int32", property.Parameters[0].Type.Name);
+    }
+
+    [Fact]
+    public void ResolveMember_P_IndexerByParamList_String()
+    {
+        var entity = MemberResolver.ResolveMember("P:TestLibrary.IndexerOverloadTest.Item(System.String)");
+        Assert.NotNull(entity);
+
+        var property = Assert.IsAssignableFrom<IProperty>(entity);
+        Assert.Single(property.Parameters);
+        Assert.Equal("String", property.Parameters[0].Type.Name);
+    }
+
+    [Fact]
+    public void ResolveMember_P_IndexerByParamList_NoMatch_ReturnsNull()
+    {
+        var entity = MemberResolver.ResolveMember("P:TestLibrary.IndexerOverloadTest.Item(System.Boolean)");
+        Assert.Null(entity);
+    }
+
+    [Fact]
+    public void ResolveMember_P_IndexerWithoutParens_FallsBackToFirst()
+    {
+        var entity = MemberResolver.ResolveMember("P:TestLibrary.IndexerOverloadTest.Item");
+        Assert.NotNull(entity);
+
+        var property = Assert.IsAssignableFrom<IProperty>(entity);
+        Assert.Single(property.Parameters);
+        Assert.Equal("Int32", property.Parameters[0].Type.Name);
+    }
+
+    [Fact]
     public void ResolveMember_M_OverloadWithoutParens_FallsBackToFirst()
     {
         // Without param list, should still resolve (to first overload)
