@@ -293,14 +293,11 @@ public class MemberResolver
 
         var candidates = type.Methods.Where(m => m.Name == methodName).ToList();
         if (candidates.Count == 0) return null;
-        if (candidates.Count == 1) return candidates[0];
 
-        // Multiple overloads — try parameter list disambiguation
         if (paramList != null)
         {
             var paramTypes = ParseXmlDocParamList(paramList);
-            var match = candidates.FirstOrDefault(m => MatchesParamTypes(m, paramTypes));
-            if (match != null) return match;
+            return candidates.FirstOrDefault(m => MatchesParamTypes(m, paramTypes));
         }
 
         // Fallback: return first overload

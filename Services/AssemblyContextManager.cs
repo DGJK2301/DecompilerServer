@@ -405,13 +405,14 @@ public class AssemblyContextManager : IDisposable
                 index.TryAdd(grp.Key, grp.Single());
         }
 
-        // Pass 4: Index by short backtick name (e.g. "GenericClass`1") for convenience
-        foreach (var type in allTypes)
+        // Pass 4: Index by short backtick name (e.g. "GenericClass`1")
+        // only when globally unambiguous.
+        foreach (var grp in allTypes
+            .Where(t => t.TypeParameterCount > 0)
+            .GroupBy(t => $"{t.Name}`{t.TypeParameterCount}"))
         {
-            if (type.TypeParameterCount > 0)
-            {
-                index.TryAdd($"{type.Name}`{type.TypeParameterCount}", type);
-            }
+            if (grp.Count() == 1)
+                index.TryAdd(grp.Key, grp.Single());
         }
 
         return index;

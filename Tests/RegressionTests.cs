@@ -335,6 +335,20 @@ public class RegressionTests : ServiceTestBase
     }
 
     [Fact]
+    public void ResolveMember_M_OverloadByParamList_NoMatch_ReturnsNull()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process(System.Boolean)");
+        Assert.Null(entity);
+    }
+
+    [Fact]
+    public void ResolveMember_M_SingleCandidateWithWrongParamList_ReturnsNull()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod(System.Boolean)");
+        Assert.Null(entity);
+    }
+
+    [Fact]
     public void ResolveMember_M_OverloadWithoutParens_FallsBackToFirst()
     {
         // Without param list, should still resolve (to first overload)
@@ -357,5 +371,44 @@ public class RegressionTests : ServiceTestBase
         Assert.NotNull(afterReload);
         Assert.IsAssignableFrom<IMethod>(afterReload);
         Assert.NotSame(beforeReload, afterReload);
+    }
+
+    [Fact]
+    public void FindTypeByName_ShortBacktick_AmbiguousAcrossNamespaces_ReturnsNull()
+    {
+        var entity = ContextManager.FindTypeByName("Duplicated`1");
+        Assert.Null(entity);
+    }
+
+    [Fact]
+    public void FindTypeByName_FullBacktick_AmbiguousAcrossNamespaces_StillResolves()
+    {
+        var left = ContextManager.FindTypeByName("TestLibrary.NamespaceA.Duplicated`1");
+        var right = ContextManager.FindTypeByName("TestLibrary.NamespaceB.Duplicated`1");
+
+        Assert.NotNull(left);
+        Assert.NotNull(right);
+        Assert.NotEqual(left!.MetadataToken, right!.MetadataToken);
+    }
+
+    [Fact]
+    public void FindTypeByName_FullName_AmbiguousAcrossNamespaces_StillResolves()
+    {
+        var left = ContextManager.FindTypeByName("TestLibrary.NamespaceA.Duplicated");
+        var right = ContextManager.FindTypeByName("TestLibrary.NamespaceB.Duplicated");
+
+        Assert.NotNull(left);
+        Assert.NotNull(right);
+        Assert.Equal(1, left!.TypeParameterCount);
+        Assert.Equal(1, right!.TypeParameterCount);
+        Assert.NotEqual(left.MetadataToken, right.MetadataToken);
+    }
+
+    [Fact]
+    public void FindTypeByName_ShortBacktick_UniqueArity_StillWorks()
+    {
+        var entity = ContextManager.FindTypeByName("AliasClass`1");
+        Assert.NotNull(entity);
+        Assert.Equal(1, entity!.TypeParameterCount);
     }
 }
