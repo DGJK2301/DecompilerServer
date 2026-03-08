@@ -42,6 +42,8 @@ public static class StatusTool
     {
         var settings = ServiceLocator.ContextManager.GetCurrentSettings();
 
+        // SYNC: keep this payload aligned with AssemblyContextManager
+        // CreateDefaultSettings/CloneSettings and SetDecompileSettingsTool.
         return new
         {
             usingDeclarations = settings.UsingDeclarations,

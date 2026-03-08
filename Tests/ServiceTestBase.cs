@@ -29,6 +29,15 @@ public class ServiceTestBase : IDisposable
 
     public void Dispose()
     {
-        ContextManager?.Dispose();
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            ContextManager?.Dispose();
+        }
     }
 }

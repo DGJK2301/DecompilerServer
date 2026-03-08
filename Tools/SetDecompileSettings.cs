@@ -34,6 +34,9 @@ public static class SetDecompileSettingsTool
             // Clear decompiled source cache since output may change
             decompilerService.ClearCache();
 
+            // SYNC: keep this payload aligned with AssemblyContextManager
+            // CreateDefaultSettings/CloneSettings, ApplySettingsChanges, and
+            // StatusTool.GetDecompilerSettings.
             // Return current effective settings
             var effectiveSettings = new
             {
@@ -52,6 +55,9 @@ public static class SetDecompileSettingsTool
 
     private static DecompilerSettings ApplySettingsChanges(DecompilerSettings currentSettings, Dictionary<string, object> changes)
     {
+        // SYNC: keep this clone and switch aligned with
+        // AssemblyContextManager.CreateDefaultSettings/CloneSettings,
+        // this tool's response payload, and StatusTool.GetDecompilerSettings.
         var newSettings = new DecompilerSettings
         {
             UsingDeclarations = currentSettings.UsingDeclarations,
@@ -65,6 +71,8 @@ public static class SetDecompileSettingsTool
 
         foreach (var (key, value) in changes)
         {
+            // SYNC: supported settings keys must stay aligned with the clone
+            // above and the response/status payloads.
             switch (key.ToLowerInvariant())
             {
                 case "usingdeclarations":
