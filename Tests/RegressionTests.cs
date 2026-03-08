@@ -12,11 +12,11 @@ namespace Tests;
 public class RegressionTests : ServiceTestBase
 {
     private readonly DecompilerService _decompilerService;
+    private readonly List<string> _tempDirs = [];
 
     public RegressionTests()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"DecompilerServerRegression_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var tempDir = CreateTempDirectory("DecompilerServerRegression");
         ContextManager.LoadAssembly(tempDir, TestAssemblyPath);
 
         _decompilerService = new DecompilerService(ContextManager, MemberResolver);
@@ -177,6 +177,52 @@ public class RegressionTests : ServiceTestBase
         }
     }
 
+    [Theory]
+    [InlineData("usingDeclarations", nameof(DecompilerSettings.UsingDeclarations))]
+    [InlineData("showXmlDocumentation", nameof(DecompilerSettings.ShowXmlDocumentation))]
+    [InlineData("namedArguments", nameof(DecompilerSettings.NamedArguments))]
+    [InlineData("makeAssignmentExpressions", nameof(DecompilerSettings.MakeAssignmentExpressions))]
+    [InlineData("alwaysUseBraces", nameof(DecompilerSettings.AlwaysUseBraces))]
+    [InlineData("removeDeadCode", nameof(DecompilerSettings.RemoveDeadCode))]
+    [InlineData("introduceIncrementAndDecrement", nameof(DecompilerSettings.IntroduceIncrementAndDecrement))]
+    public void SetDecompileSettings_AllSupportedSettings_ShouldRoundTripThroughStatus(string settingKey, string propertyName)
+    {
+        var original = ContextManager.GetCurrentSettings();
+
+        try
+        {
+            var originalValue = GetDecompilerSettingValue(original, propertyName);
+            var toggledValue = !originalValue;
+
+            var updated = ParseToolResult(SetDecompileSettingsTool.SetDecompileSettings(new Dictionary<string, object>
+            {
+                [settingKey] = toggledValue
+            }));
+
+            Assert.Equal(toggledValue, updated.GetProperty(settingKey).GetBoolean());
+            Assert.Equal(toggledValue, GetDecompilerSettingValue(ContextManager.GetCurrentSettings(), propertyName));
+
+            var statusSettings = ParseToolResult(StatusTool.Status()).GetProperty("settings");
+            Assert.Equal(toggledValue, statusSettings.GetProperty(settingKey).GetBoolean());
+
+            var restored = ParseToolResult(SetDecompileSettingsTool.SetDecompileSettings(new Dictionary<string, object>
+            {
+                [settingKey] = originalValue
+            }));
+
+            Assert.Equal(originalValue, restored.GetProperty(settingKey).GetBoolean());
+            Assert.Equal(originalValue, GetDecompilerSettingValue(ContextManager.GetCurrentSettings(), propertyName));
+
+            statusSettings = ParseToolResult(StatusTool.Status()).GetProperty("settings");
+            Assert.Equal(originalValue, statusSettings.GetProperty(settingKey).GetBoolean());
+        }
+        finally
+        {
+            ContextManager.UpdateSettings(original);
+            _decompilerService.ClearCache();
+        }
+    }
+
     private ITypeDefinition GetUniqueTypeByName(string name)
     {
         return ContextManager.GetAllTypes().Single(t => t.Name == name);
@@ -194,6 +240,20 @@ public class RegressionTests : ServiceTestBase
         var root = JsonSerializer.Deserialize<JsonElement>(result);
         Assert.True(root.GetProperty("status").GetString() == "ok", result);
         return root.GetProperty("data");
+    }
+
+    private static bool GetDecompilerSettingValue(DecompilerSettings settings, string propertyName)
+    {
+        return (bool)(typeof(DecompilerSettings).GetProperty(propertyName)?.GetValue(settings)
+            ?? throw new InvalidOperationException($"Missing DecompilerSettings property '{propertyName}'."));
+    }
+
+    private string CreateTempDirectory(string prefix)
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"{prefix}_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        _tempDirs.Add(tempDir);
+        return tempDir;
     }
 
     // ───── Generic arity disambiguation tests ─────
@@ -485,8 +545,7 @@ public class RegressionTests : ServiceTestBase
         var beforeReload = MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod");
         Assert.NotNull(beforeReload);
 
-        var tempDir = Path.Combine(Path.GetTempPath(), $"DecompilerServerRegressionReload_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
+        var tempDir = CreateTempDirectory("DecompilerServerRegressionReload");
         ContextManager.LoadAssembly(tempDir, TestAssemblyPath);
 
         var afterReload = MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod");
@@ -532,5 +591,33 @@ public class RegressionTests : ServiceTestBase
         var entity = ContextManager.FindTypeByName("AliasClass`1");
         Assert.NotNull(entity);
         Assert.Equal(1, entity!.TypeParameterCount);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        try
+        {
+            base.Dispose(disposing);
+        }
+        finally
+        {
+            if (disposing)
+            {
+                foreach (var tempDir in _tempDirs)
+                {
+                    try
+                    {
+                        if (Directory.Exists(tempDir))
+                        {
+                            Directory.Delete(tempDir, true);
+                        }
+                    }
+                    catch
+                    {
+                        // Best effort cleanup for temp test directories.
+                    }
+                }
+            }
+        }
     }
 }

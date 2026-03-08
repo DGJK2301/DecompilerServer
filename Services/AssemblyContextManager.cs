@@ -535,6 +535,9 @@ public class AssemblyContextManager : IDisposable
         InitializeLazyIndexes();
     }
 
+    // SYNC: keep these supported settings aligned with CloneSettings,
+    // SetDecompileSettingsTool.ApplySettingsChanges, SetDecompileSettingsTool
+    // response payload, and StatusTool.GetDecompilerSettings.
     private static DecompilerSettings CreateDefaultSettings()
     {
         return new DecompilerSettings
@@ -549,6 +552,9 @@ public class AssemblyContextManager : IDisposable
         };
     }
 
+    // SYNC: keep these supported settings aligned with CreateDefaultSettings,
+    // SetDecompileSettingsTool.ApplySettingsChanges, SetDecompileSettingsTool
+    // response payload, and StatusTool.GetDecompilerSettings.
     private static DecompilerSettings CloneSettings(DecompilerSettings settings)
     {
         return new DecompilerSettings

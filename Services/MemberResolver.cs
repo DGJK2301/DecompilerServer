@@ -32,6 +32,8 @@ public class MemberResolver
             return null;
 
         var compilation = _contextManager.GetCompilation();
+        // Epoch check only. See EnsureCompilationScope for why we intentionally
+        // do not widen this lock to the full resolution path.
         EnsureCompilationScope(compilation);
 
         // Check cache first
@@ -50,6 +52,16 @@ public class MemberResolver
         return entity;
     }
 
+    /// <summary>
+    /// Epoch-based cache invalidation for compilation reloads.
+    /// We intentionally lock only around generation detection and cache clear,
+    /// not around the full ResolveMember body. That leaves a narrow race where
+    /// a thread that captured the old compilation before reload can add a stale
+    /// cache entry after another thread has already cleared the cache. Results
+    /// stay internally consistent, and the next lookup that observes a newer
+    /// compilation clears old entries. Do not widen this lock without
+    /// considering throughput and lock ordering with AssemblyContextManager.
+    /// </summary>
     private void EnsureCompilationScope(ICompilation compilation)
     {
         lock (_cacheScopeLock)
@@ -194,23 +206,13 @@ public class MemberResolver
 
         return prefix switch
         {
-            'T' => ResolveTypeByFullName(fullName, compilation),
+            'T' => LookupType(fullName, compilation),
             'M' => FindMethodByFullName(fullName, compilation),
             'F' => FindFieldByFullName(fullName, compilation),
             'P' => FindPropertyByFullName(fullName, compilation),
             'E' => FindEventByFullName(fullName, compilation),
             _ => null
         };
-    }
-
-    /// <summary>
-    /// Resolve a type by full name, trying the cached index first (handles backtick arity),
-    /// then falling back to FullTypeName.
-    /// </summary>
-    private ITypeDefinition? ResolveTypeByFullName(string fullName, ICompilation compilation)
-    {
-        return _contextManager.FindTypeByName(fullName) ??
-               compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(fullName)).GetDefinition();
     }
 
     private IEntity? ResolveMemberByTokenId(string memberId, ICompilation compilation)
