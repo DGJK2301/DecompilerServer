@@ -275,4 +275,13 @@ public class OverloadTest
 
     public void ConsumeCollection(List<string> input) { _ = input; }
     public void ConsumeCollection(Dictionary<string, int> input) { _ = input; }
+
+    public void Transform(List<int> data) { _ = data; }
+    public void Transform(List<string> data) { _ = data; }
+
+    public void Generic(int value) { _ = value; }
+    public void Generic<T>(List<T> data) { _ = data; }
+
+    public void ProcessMatrix(int[,] matrix) { _ = matrix; }
+    public void ProcessMatrix(int[,] matrix, string label) { _ = matrix; _ = label; }
 }

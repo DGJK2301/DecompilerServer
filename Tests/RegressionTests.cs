@@ -335,6 +335,88 @@ public class RegressionTests : ServiceTestBase
     }
 
     [Fact]
+    public void ResolveMember_M_OverloadByGenericArgumentParamList_ListInt()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.Transform(System.Collections.Generic.List{System.Int32})");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Single(method.Parameters);
+        Assert.Equal("Int32", method.Parameters[0].Type.TypeArguments[0].Name);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByGenericArgumentParamList_ListString()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.Transform(System.Collections.Generic.List{System.String})");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Single(method.Parameters);
+        Assert.Equal("String", method.Parameters[0].Type.TypeArguments[0].Name);
+    }
+
+    [Fact]
+    public void ResolveMember_M_GenericMethodTypeParameterParamList()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.Generic``1(System.Collections.Generic.List{``0})");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Single(method.TypeParameters);
+        Assert.Single(method.Parameters);
+        Assert.Equal("``0", method.Parameters[0].Type.TypeArguments[0].ReflectionName);
+    }
+
+    [Fact]
+    public void ResolveMember_M_SameNameWithoutArity_PrefersNonGenericMethod()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Generic(System.Int32)");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Empty(method.TypeParameters);
+        Assert.Single(method.Parameters);
+        Assert.Equal("Int32", method.Parameters[0].Type.Name);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByMultiDimArrayParamList()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.ProcessMatrix(System.Int32[0:,0:])");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Single(method.Parameters);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByMultiDimArrayParamList_ShortForm()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.ProcessMatrix(System.Int32[,])");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Single(method.Parameters);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByMultiDimArrayParamList_WithExtraParam()
+    {
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.ProcessMatrix(System.Int32[0:,0:],System.String)");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal(2, method.Parameters.Count);
+    }
+
+    [Fact]
     public void ResolveMember_M_OverloadByParamList_NoMatch_ReturnsNull()
     {
         var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process(System.Boolean)");
