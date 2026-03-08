@@ -16,10 +16,12 @@ public class ServiceTestBase : IDisposable
         ContextManager = new AssemblyContextManager();
         MemberResolver = new MemberResolver(ContextManager);
 
-        // Get path to the test.dll we built
-        TestAssemblyPath = Path.GetFullPath(Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
+        var currentOutputAssembly = Path.Combine(AppContext.BaseDirectory, "test.dll");
+        var repoAssembly = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
             "..", "..", "..", "..", "TestLibrary", "bin", "Debug", "net8.0", "test.dll"));
+
+        TestAssemblyPath = File.Exists(currentOutputAssembly) ? currentOutputAssembly : repoAssembly;
 
         // Load the test assembly for all tests
         if (File.Exists(TestAssemblyPath))

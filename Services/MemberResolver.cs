@@ -15,6 +15,8 @@ public class MemberResolver
 {
     private readonly AssemblyContextManager _contextManager;
     private readonly ConcurrentDictionary<string, IEntity?> _resolutionCache = new();
+    private readonly object _cacheScopeLock = new();
+    private ICompilation? _lastCompilation;
 
     public MemberResolver(AssemblyContextManager contextManager)
     {
@@ -29,11 +31,12 @@ public class MemberResolver
         if (string.IsNullOrWhiteSpace(memberId))
             return null;
 
+        var compilation = _contextManager.GetCompilation();
+        EnsureCompilationScope(compilation);
+
         // Check cache first
         if (_resolutionCache.TryGetValue(memberId, out var cached))
             return cached;
-
-        var compilation = _contextManager.GetCompilation();
 
         // Try fast path with indexed members first
         var entity = _contextManager.FindMemberById(memberId) ??
@@ -45,6 +48,18 @@ public class MemberResolver
         _resolutionCache.TryAdd(memberId, entity);
 
         return entity;
+    }
+
+    private void EnsureCompilationScope(ICompilation compilation)
+    {
+        lock (_cacheScopeLock)
+        {
+            if (!ReferenceEquals(_lastCompilation, compilation))
+            {
+                _resolutionCache.Clear();
+                _lastCompilation = compilation;
+            }
+        }
     }
 
     /// <summary>
@@ -179,13 +194,23 @@ public class MemberResolver
 
         return prefix switch
         {
-            'T' => compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(fullName)).GetDefinition(),
+            'T' => ResolveTypeByFullName(fullName, compilation),
             'M' => FindMethodByFullName(fullName, compilation),
             'F' => FindFieldByFullName(fullName, compilation),
             'P' => FindPropertyByFullName(fullName, compilation),
             'E' => FindEventByFullName(fullName, compilation),
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Resolve a type by full name, trying the cached index first (handles backtick arity),
+    /// then falling back to FullTypeName.
+    /// </summary>
+    private ITypeDefinition? ResolveTypeByFullName(string fullName, ICompilation compilation)
+    {
+        return _contextManager.FindTypeByName(fullName) ??
+               compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(fullName)).GetDefinition();
     }
 
     private IEntity? ResolveMemberByTokenId(string memberId, ICompilation compilation)
@@ -228,61 +253,204 @@ public class MemberResolver
         }
     }
 
+    /// <summary>
+    /// Split "Namespace.Type.Member" or "Namespace.Type`1.Member" into (typeName, memberName).
+    /// If input contains parentheses (param list), strip them first and return separately.
+    /// </summary>
+    private static (string typeName, string memberName, string? paramList) SplitTypeMember(string fullName)
+    {
+        string? paramList = null;
+        var parenIdx = fullName.IndexOf('(');
+        if (parenIdx >= 0)
+        {
+            paramList = fullName.Substring(parenIdx);
+            fullName = fullName.Substring(0, parenIdx);
+        }
+
+        var lastDot = fullName.LastIndexOf('.');
+        if (lastDot < 0)
+            return ("", fullName, paramList);
+
+        return (fullName.Substring(0, lastDot), fullName.Substring(lastDot + 1), paramList);
+    }
+
+    /// <summary>
+    /// Try to resolve a type name via cached index then FullTypeName fallback.
+    /// </summary>
+    private ITypeDefinition? LookupType(string typeName, ICompilation compilation)
+    {
+        return _contextManager.FindTypeByName(typeName) ??
+               compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+    }
+
     private IMethod? FindMethodByFullName(string fullName, ICompilation compilation)
     {
-        // Parse method full name and find matching method
-        // This is simplified - full implementation would handle generics, overloads, etc.
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
+        var (typeName, methodName, paramList) = SplitTypeMember(fullName);
+        if (string.IsNullOrEmpty(typeName)) return null;
 
-        var typeName = fullName.Substring(0, lastDot);
-        var methodName = fullName.Substring(lastDot + 1);
+        var type = LookupType(typeName, compilation);
+        if (type == null) return null;
 
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
-        return type?.Methods.FirstOrDefault(m => m.Name == methodName);
+        var candidates = type.Methods.Where(m => m.Name == methodName).ToList();
+        if (candidates.Count == 0) return null;
+        if (candidates.Count == 1) return candidates[0];
+
+        // Multiple overloads — try parameter list disambiguation
+        if (paramList != null)
+        {
+            var paramTypes = ParseXmlDocParamList(paramList);
+            var match = candidates.FirstOrDefault(m => MatchesParamTypes(m, paramTypes));
+            if (match != null) return match;
+        }
+
+        // Fallback: return first overload
+        return candidates[0];
+    }
+
+    /// <summary>
+    /// Parse XML-doc style parameter list "(System.String,System.Int32)" into type name array.
+    /// </summary>
+    private static string[] ParseXmlDocParamList(string paramList)
+    {
+        var inner = paramList.TrimStart('(').TrimEnd(')').Trim();
+        if (string.IsNullOrEmpty(inner)) return Array.Empty<string>();
+
+        var parts = new List<string>();
+        var start = 0;
+        var genericDepth = 0;
+
+        for (var i = 0; i < inner.Length; i++)
+        {
+            switch (inner[i])
+            {
+                case '{':
+                    genericDepth++;
+                    break;
+                case '}':
+                    if (genericDepth > 0)
+                        genericDepth--;
+                    break;
+                case ',':
+                    if (genericDepth == 0)
+                    {
+                        parts.Add(inner.Substring(start, i - start).Trim());
+                        start = i + 1;
+                    }
+                    break;
+            }
+        }
+
+        parts.Add(inner.Substring(start).Trim());
+        return parts.Where(static p => !string.IsNullOrEmpty(p)).ToArray();
+    }
+
+    /// <summary>
+    /// Check if a method's parameter types match the given XML-doc type names.
+    /// Matches by full name or simple name.
+    /// </summary>
+    private static bool MatchesParamTypes(IMethod method, string[] paramTypes)
+    {
+        if (method.Parameters.Count != paramTypes.Length) return false;
+        for (int i = 0; i < paramTypes.Length; i++)
+        {
+            var pType = method.Parameters[i].Type;
+            var expected = paramTypes[i];
+            var normalizedExpected = NormalizeXmlDocTypeName(expected);
+            var definition = pType.GetDefinition();
+            var normalizedActual = NormalizeReflectionTypeName(pType.ReflectionName);
+
+            if (pType.FullName != expected &&
+                pType.ReflectionName != expected &&
+                pType.Name != expected &&
+                normalizedActual != normalizedExpected &&
+                definition?.FullName != normalizedExpected &&
+                definition?.ReflectionName != normalizedExpected &&
+                definition?.Name != normalizedExpected)
+                return false;
+        }
+        return true;
+    }
+
+    private static string NormalizeXmlDocTypeName(string typeName)
+    {
+        var trimmed = typeName.Trim();
+        var genericStart = trimmed.IndexOf('{');
+        if (genericStart < 0)
+            return trimmed;
+
+        var genericEnd = trimmed.LastIndexOf('}');
+        if (genericEnd <= genericStart)
+            return trimmed;
+
+        var arity = CountTopLevelGenericArguments(trimmed.Substring(genericStart + 1, genericEnd - genericStart - 1));
+        return $"{trimmed.Substring(0, genericStart)}`{arity}";
+    }
+
+    private static string? NormalizeReflectionTypeName(string? reflectionName)
+    {
+        if (string.IsNullOrWhiteSpace(reflectionName))
+            return reflectionName;
+
+        var genericInstanceStart = reflectionName.IndexOf("[[", StringComparison.Ordinal);
+        if (genericInstanceStart < 0)
+            return reflectionName;
+
+        return reflectionName.Substring(0, genericInstanceStart);
+    }
+
+    private static int CountTopLevelGenericArguments(string genericArgs)
+    {
+        if (string.IsNullOrWhiteSpace(genericArgs))
+            return 0;
+
+        var count = 1;
+        var genericDepth = 0;
+
+        foreach (var ch in genericArgs)
+        {
+            switch (ch)
+            {
+                case '{':
+                    genericDepth++;
+                    break;
+                case '}':
+                    if (genericDepth > 0)
+                        genericDepth--;
+                    break;
+                case ',':
+                    if (genericDepth == 0)
+                        count++;
+                    break;
+            }
+        }
+
+        return count;
     }
 
     private IField? FindFieldByFullName(string fullName, ICompilation compilation)
     {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
+        var (typeName, fieldName, _) = SplitTypeMember(fullName);
+        if (string.IsNullOrEmpty(typeName)) return null;
 
-        var typeName = fullName.Substring(0, lastDot);
-        var fieldName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        var type = LookupType(typeName, compilation);
         return type?.Fields.FirstOrDefault(f => f.Name == fieldName);
     }
 
     private IProperty? FindPropertyByFullName(string fullName, ICompilation compilation)
     {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
+        var (typeName, propertyName, _) = SplitTypeMember(fullName);
+        if (string.IsNullOrEmpty(typeName)) return null;
 
-        var typeName = fullName.Substring(0, lastDot);
-        var propertyName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        var type = LookupType(typeName, compilation);
         return type?.Properties.FirstOrDefault(p => p.Name == propertyName);
     }
 
     private IEvent? FindEventByFullName(string fullName, ICompilation compilation)
     {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
+        var (typeName, eventName, _) = SplitTypeMember(fullName);
+        if (string.IsNullOrEmpty(typeName)) return null;
 
-        var typeName = fullName.Substring(0, lastDot);
-        var eventName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        var type = LookupType(typeName, compilation);
         return type?.Events.FirstOrDefault(e => e.Name == eventName);
     }
 

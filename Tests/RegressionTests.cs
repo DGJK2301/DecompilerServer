@@ -15,11 +15,9 @@ public class RegressionTests : ServiceTestBase
 
     public RegressionTests()
     {
-        var repoRoot = FindRepoRoot();
-        var testAssemblyPath = Path.Combine(repoRoot, "TestLibrary", "bin", "Debug", "net8.0", "test.dll");
         var tempDir = Path.Combine(Path.GetTempPath(), $"DecompilerServerRegression_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
-        ContextManager.LoadAssembly(tempDir, testAssemblyPath);
+        ContextManager.LoadAssembly(tempDir, TestAssemblyPath);
 
         _decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
@@ -198,16 +196,166 @@ public class RegressionTests : ServiceTestBase
         return root.GetProperty("data");
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DecompilerServer.sln")))
-                return dir.FullName;
-            dir = dir.Parent;
-        }
+    // ───── Generic arity disambiguation tests ─────
 
-        throw new DirectoryNotFoundException("Could not locate DecompilerServer.sln from test base directory.");
+    [Fact]
+    public void FindTypeByName_BacktickArity_ResolvesCorrectGeneric()
+    {
+        var t0 = ContextManager.FindTypeByName("TestLibrary.ArityTest");
+        var t1 = ContextManager.FindTypeByName("TestLibrary.ArityTest`1");
+        var t2 = ContextManager.FindTypeByName("TestLibrary.ArityTest`2");
+
+        Assert.NotNull(t0);
+        Assert.NotNull(t1);
+        Assert.NotNull(t2);
+        Assert.Equal(0, t0!.TypeParameterCount);
+        Assert.Equal(1, t1!.TypeParameterCount);
+        Assert.Equal(2, t2!.TypeParameterCount);
+        Assert.NotEqual(t0.MetadataToken, t1.MetadataToken);
+        Assert.NotEqual(t1.MetadataToken, t2.MetadataToken);
+    }
+
+    [Fact]
+    public void FindTypeByName_AliasClass_BacktickDisambiguates()
+    {
+        var nonGeneric = ContextManager.FindTypeByName("TestLibrary.AliasClass");
+        var generic = ContextManager.FindTypeByName("TestLibrary.AliasClass`1");
+
+        Assert.NotNull(nonGeneric);
+        Assert.NotNull(generic);
+        Assert.Equal(0, nonGeneric!.TypeParameterCount);
+        Assert.Equal(1, generic!.TypeParameterCount);
+    }
+
+    [Fact]
+    public void FindTypeByName_ShortBacktick_ResolvesGeneric()
+    {
+        // Short name with backtick (e.g. "ArityTest`2") should work
+        var t2 = ContextManager.FindTypeByName("ArityTest`2");
+        Assert.NotNull(t2);
+        Assert.Equal(2, t2!.TypeParameterCount);
+    }
+
+    [Fact]
+    public void FindTypeByName_UniqueSimpleName_StillWorks()
+    {
+        // GenericClass has no non-generic sibling, so simple name lookup should still work
+        var gc = ContextManager.FindTypeByName("GenericClass");
+        Assert.NotNull(gc);
+        Assert.Equal(1, gc!.TypeParameterCount);
+    }
+
+    // ───── T:/M:/F:/P:/E: path resolution with generics ─────
+
+    [Fact]
+    public void ResolveMember_T_BacktickArity()
+    {
+        var entity = MemberResolver.ResolveMember("T:TestLibrary.ArityTest`1");
+        Assert.NotNull(entity);
+        Assert.IsAssignableFrom<ITypeDefinition>(entity);
+        Assert.Equal(1, ((ITypeDefinition)entity!).TypeParameterCount);
+    }
+
+    [Fact]
+    public void ResolveMember_T_UniqueGenericWithoutBacktick_ShouldResolve()
+    {
+        var entity = MemberResolver.ResolveMember("T:TestLibrary.GenericClass");
+        Assert.NotNull(entity);
+        Assert.IsAssignableFrom<ITypeDefinition>(entity);
+        Assert.Equal(1, ((ITypeDefinition)entity!).TypeParameterCount);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OnGenericType_BacktickArity()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.ArityTest`1.Run");
+        Assert.NotNull(entity);
+        Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal("Run", entity!.Name);
+        Assert.Equal(1, entity.DeclaringTypeDefinition!.TypeParameterCount);
+    }
+
+    [Fact]
+    public void ResolveMember_F_OnGenericType_BacktickArity()
+    {
+        var entity = MemberResolver.ResolveMember("F:TestLibrary.ArityTest`2.First");
+        Assert.NotNull(entity);
+        Assert.IsAssignableFrom<IField>(entity);
+        Assert.Equal("First", entity!.Name);
+        Assert.Equal(2, entity.DeclaringTypeDefinition!.TypeParameterCount);
+    }
+
+    // ───── Method overload disambiguation ─────
+
+    [Fact]
+    public void ResolveMember_M_OverloadByParamList_NoArgs()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process()");
+        Assert.NotNull(entity);
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal(0, method.Parameters.Count);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByParamList_OneArg()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process(System.String)");
+        Assert.NotNull(entity);
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal(1, method.Parameters.Count);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByParamList_TwoArgs()
+    {
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process(System.String,System.Int32)");
+        Assert.NotNull(entity);
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal(2, method.Parameters.Count);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadByGenericCollectionParamList()
+    {
+        var overloadType = ContextManager.FindTypeByName("TestLibrary.OverloadTest");
+        Assert.NotNull(overloadType);
+        Assert.Equal(2, overloadType!.Methods.Count(m => m.Name == "ConsumeCollection"));
+
+        var entity = MemberResolver.ResolveMember(
+            "M:TestLibrary.OverloadTest.ConsumeCollection(System.Collections.Generic.Dictionary{System.String,System.Int32})");
+        Assert.NotNull(entity);
+
+        var method = Assert.IsAssignableFrom<IMethod>(entity);
+        Assert.Equal("ConsumeCollection", method.Name);
+        Assert.Single(method.Parameters);
+
+        var parameterType = method.Parameters[0].Type;
+        var parameterTypeName = parameterType.ReflectionName ?? parameterType.FullName ?? parameterType.Name;
+        Assert.Contains("Dictionary", parameterTypeName);
+    }
+
+    [Fact]
+    public void ResolveMember_M_OverloadWithoutParens_FallsBackToFirst()
+    {
+        // Without param list, should still resolve (to first overload)
+        var entity = MemberResolver.ResolveMember("M:TestLibrary.OverloadTest.Process");
+        Assert.NotNull(entity);
+        Assert.IsAssignableFrom<IMethod>(entity);
+    }
+
+    [Fact]
+    public void ResolveMember_AfterAssemblyReload_ShouldRefreshCachedEntityForSameKey()
+    {
+        var beforeReload = MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod");
+        Assert.NotNull(beforeReload);
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"DecompilerServerRegressionReload_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        ContextManager.LoadAssembly(tempDir, TestAssemblyPath);
+
+        var afterReload = MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod");
+        Assert.NotNull(afterReload);
+        Assert.IsAssignableFrom<IMethod>(afterReload);
+        Assert.NotSame(beforeReload, afterReload);
     }
 }

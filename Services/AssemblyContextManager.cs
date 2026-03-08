@@ -383,11 +383,37 @@ public class AssemblyContextManager : IDisposable
         var index = new ConcurrentDictionary<string, ITypeDefinition>();
         if (!IsLoaded) return index;
 
-        foreach (var type in _compilation!.MainModule.TypeDefinitions)
+        var allTypes = _compilation!.MainModule.TypeDefinitions.ToList();
+
+        // Pass 1: Index by ReflectionName (includes backtick for generics — always unique)
+        foreach (var type in allTypes)
         {
-            index.TryAdd(type.FullName, type);
-            index.TryAdd(type.Name, type); // Also index by simple name
+            index.TryAdd(type.ReflectionName, type);
         }
+
+        // Pass 2: Index by FullName (no backtick) only when unambiguous across arities
+        foreach (var grp in allTypes.GroupBy(t => t.FullName))
+        {
+            if (grp.Count() == 1)
+                index.TryAdd(grp.Key, grp.Single());
+        }
+
+        // Pass 3: Index by simple Name only when globally unambiguous
+        foreach (var grp in allTypes.GroupBy(t => t.Name))
+        {
+            if (grp.Count() == 1)
+                index.TryAdd(grp.Key, grp.Single());
+        }
+
+        // Pass 4: Index by short backtick name (e.g. "GenericClass`1") for convenience
+        foreach (var type in allTypes)
+        {
+            if (type.TypeParameterCount > 0)
+            {
+                index.TryAdd($"{type.Name}`{type.TypeParameterCount}", type);
+            }
+        }
+
         return index;
     }
 

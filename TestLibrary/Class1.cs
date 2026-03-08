@@ -242,3 +242,37 @@ public class OuterClass
         internal void InternalMethod() { }
     }
 }
+
+/// <summary>
+/// Types for testing generic arity disambiguation (Foo / Foo{T} / Foo{T,U})
+/// </summary>
+public class ArityTest
+{
+    public void Run() { }
+}
+
+public class ArityTest<T>
+{
+    public T? Value;
+    public void Run(T? input) { Value = input; }
+}
+
+public class ArityTest<T, U>
+{
+    public T? First;
+    public U? Second;
+    public void Run(T? a, U? b) { First = a; Second = b; }
+}
+
+/// <summary>
+/// Class for testing method overload disambiguation
+/// </summary>
+public class OverloadTest
+{
+    public void Process() { }
+    public void Process(string input) { _ = input; }
+    public int Process(string input, int count) { _ = input; return count; }
+
+    public void ConsumeCollection(List<string> input) { _ = input; }
+    public void ConsumeCollection(Dictionary<string, int> input) { _ = input; }
+}
