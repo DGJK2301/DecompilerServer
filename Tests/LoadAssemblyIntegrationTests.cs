@@ -36,7 +36,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var dataDir = Path.Combine(gameDir, "RimWorldWin64_Data", "Managed");
         Directory.CreateDirectory(dataDir);
 
-        var testAssemblyPath = GetTestAssemblyPath();
+        var testAssemblyPath = TestAssemblyHelper.GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
@@ -65,7 +65,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var dataDir = Path.Combine(gameDir, "MyGame_Data", "Managed");
         Directory.CreateDirectory(dataDir);
 
-        var testAssemblyPath = GetTestAssemblyPath();
+        var testAssemblyPath = TestAssemblyHelper.GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
@@ -76,11 +76,6 @@ public class LoadAssemblyIntegrationTests : IDisposable
         Assert.NotNull(result);
         Assert.DoesNotContain("error", result);
         Assert.Contains("mvid", result, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private string GetTestAssemblyPath()
-    {
-        return TestAssemblyHelper.GetTestAssemblyPath();
     }
 
     public void Dispose()

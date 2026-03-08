@@ -27,14 +27,13 @@ public class AssemblyPathResolutionTests : IDisposable
         var assemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
 
         Directory.CreateDirectory(dataDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
+        File.Copy(TestAssemblyHelper.GetTestAssemblyPath(), assemblyPath);
 
         // Act - Load assembly using just the game root directory
         _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(assemblyPath);
     }
 
     [Fact]
@@ -46,14 +45,13 @@ public class AssemblyPathResolutionTests : IDisposable
         var assemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
 
         Directory.CreateDirectory(dataDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
+        File.Copy(TestAssemblyHelper.GetTestAssemblyPath(), assemblyPath);
 
         // Act
         _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(assemblyPath);
     }
 
     [Fact]
@@ -65,14 +63,13 @@ public class AssemblyPathResolutionTests : IDisposable
         var assemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
 
         Directory.CreateDirectory(dataDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
+        File.Copy(TestAssemblyHelper.GetTestAssemblyPath(), assemblyPath);
 
         // Act
         _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(assemblyPath);
     }
 
     [Fact]
@@ -84,14 +81,13 @@ public class AssemblyPathResolutionTests : IDisposable
         var assemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
 
         Directory.CreateDirectory(dataDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
+        File.Copy(TestAssemblyHelper.GetTestAssemblyPath(), assemblyPath);
 
         // Act
         _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(assemblyPath);
     }
 
     [Fact]
@@ -103,52 +99,32 @@ public class AssemblyPathResolutionTests : IDisposable
         var assemblyPath = Path.Combine(managedDir, "Assembly-CSharp.dll");
 
         Directory.CreateDirectory(managedDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
+        File.Copy(TestAssemblyHelper.GetTestAssemblyPath(), assemblyPath);
 
         // Act
         _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(assemblyPath);
     }
 
     [Fact]
     public void ResolveAssemblyPath_WithAbsolutePath_ShouldUseDirectly()
     {
         // Arrange
-        var absolutePath = GetTestAssemblyPath();
+        var absolutePath = TestAssemblyHelper.GetTestAssemblyPath();
 
         // Act
         _contextManager.LoadAssembly("/some/game/dir", absolutePath);
 
         // Assert
-        Assert.True(_contextManager.IsLoaded);
-        Assert.Equal(TestAssemblyHelper.NormalizePath(absolutePath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
+        AssertLoadedAt(absolutePath);
     }
 
-    [Fact]
-    public void ResolveAssemblyPath_WithRimWorldExample_ShouldFindAssembly()
+    private void AssertLoadedAt(string assemblyPath)
     {
-        // Arrange - simulate the exact RimWorld scenario from the issue
-        var gameDir = Path.Combine(_tempDir, "RimWorld");
-        var dataDir = Path.Combine(gameDir, "RimWorldWin64_Data", "Managed");
-        var assemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
-
-        Directory.CreateDirectory(dataDir);
-        File.Copy(GetTestAssemblyPath(), assemblyPath);
-
-        // Act - Use only the game root directory as the user wants
-        _contextManager.LoadAssembly(gameDir, "Assembly-CSharp.dll");
-
-        // Assert
         Assert.True(_contextManager.IsLoaded);
         Assert.Equal(TestAssemblyHelper.NormalizePath(assemblyPath), TestAssemblyHelper.NormalizePath(_contextManager.AssemblyPath!));
-    }
-
-    private string GetTestAssemblyPath()
-    {
-        return TestAssemblyHelper.GetTestAssemblyPath();
     }
 
     public void Dispose()
